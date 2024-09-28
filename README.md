@@ -1,2 +1,2 @@
 # CSCI320
-Homework
+Homework for this class
