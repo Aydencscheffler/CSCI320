@@ -1,4 +1,6 @@
 struct stat;
+#include "kernel/pstat.h"
+#include "kernel/types.h" 
 
 // system calls
 int fork(void);
@@ -23,6 +25,10 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int getfilenum(int);
+int settickets(int);  // Declaration for settickets system call
+int getpinfo(struct pstat *);  // Declaration for getpinfo system call 
+
+
 
 // ulib.c
 int stat(const char*, struct stat*);

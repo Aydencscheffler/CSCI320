@@ -5,11 +5,12 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "pstat.h"
 #ifndef NULL //added NULL defintion 
 #define NULL ((void*)0)
 #endif
 extern struct proc proc[NPROC]; //added struct definition
-
+extern int either_copyout(int, uint64, void*, uint64);
 
 uint64
 sys_exit(void)
@@ -136,3 +137,53 @@ sys_getfilenum(void) {
     // Return the number of open files
     return open_files;
 }
+
+uint64
+sys_settickets(void)
+{
+  int num_tickets;
+
+  // Fetch the first argument (expected to be the number of tickets)
+  argint(0, &num_tickets);
+
+  // Check if the number of tickets is valid (must be >= 1)
+  if (num_tickets < 1) {
+    return -1;
+  }
+
+  // Set the number of tickets for the current process
+  struct proc *p = myproc();
+  p->tickets = num_tickets;
+  return 0;
+}
+
+
+uint64
+sys_getpinfo(void)
+{
+  struct pstat *pstat;
+  struct pstat pinfo;
+
+  // Retrieve the user pointer to the pstat structure
+  argaddr(0, (uint64*)&pstat);
+
+  // validate the pstat pointer to ensure it's not null
+  if (pstat == 0) {
+    return -1;
+  }
+
+  // Iterate over all processes and fill in the pstat structure
+  struct proc *p;
+  for (int i = 0; i < NPROC; i++) {
+    p = &proc[i];
+    acquire(&p->lock);
+    pinfo.inuse[i] = (p->state != UNUSED);
+    pinfo.tickets[i] = p->tickets;
+    pinfo.pid[i] = p->pid;
+    pinfo.ticks[i] = p->ticks; // track ticks in the proc structure
+    release(&p->lock);
+  }
+  either_copyout(1, (uint64) pstat, &pinfo, sizeof(struct pstat));
+  return 0;
+}
+

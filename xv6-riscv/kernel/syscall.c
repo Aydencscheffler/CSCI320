@@ -102,6 +102,8 @@ extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_getfilenum(void); //added new prototype here
+extern uint64 sys_settickets(void);
+extern uint64 sys_getpinfo(void); 
 
 
 // An array mapping syscall numbers from syscall.h
@@ -129,6 +131,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_getfilenum]  sys_getfilenum, //added new map here
+[SYS_settickets] sys_settickets,
+[SYS_getpinfo] sys_getpinfo,
 
 };
 

@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -29,6 +30,9 @@ struct spinlock wait_lock;
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
+
+extern int scaled_random(int low, int high); //random number generator
+
 void
 proc_mapstacks(pagetable_t kpgtbl)
 {
@@ -125,6 +129,10 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  p->tickets = 1; // Default to 1 ticket when the process is created
+  p->ticks = 0;   // Initialize the new ticks field p->ticks = 0;
+
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -145,6 +153,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
 
   return p;
 }
@@ -301,6 +310,7 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+  np->tickets = p->tickets;  // Child inherits the parent's tickets
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -444,41 +454,64 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  struct proc *p;
-  struct cpu *c = mycpu();
+    struct proc *p;
+    struct cpu *c = mycpu();
+    c->proc = 0;
 
-  c->proc = 0;
-  for(;;){
-    // The most recent process to run may have had interrupts
-    // turned off; enable them to avoid a deadlock if all
-    // processes are waiting.
-    intr_on();
+    for(;;){
+        // Enable interrupts on this processor.
+        intr_on();
 
-    int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+        int total_tickets = 0;
+        int winner_ticket = 0;
+        int current_sum = 0;
+        struct proc *chosen_proc = 0;
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
-      }
-      release(&p->lock);
+        // Step 1: Calculate total number of tickets
+        for(p = proc; p < &proc[NPROC]; p++) {
+            acquire(&p->lock);
+            if(p->state == RUNNABLE) {
+                total_tickets += p->tickets;
+            }
+            release(&p->lock);
+        }
+
+        // Step 2: Randomly pick a ticket (lottery)
+        if (total_tickets > 0) {
+            winner_ticket = scaled_random(0, total_tickets - 1);
+        }
+
+        // Step 3: Find the process corresponding to the winning ticket
+        for(p = proc; p < &proc[NPROC]; p++) {
+            acquire(&p->lock);
+            if(p->state == RUNNABLE) {
+                current_sum += p->tickets;
+                if(current_sum > winner_ticket) {
+                    chosen_proc = p;
+                    break;
+                }
+            }
+            release(&p->lock);
+        }
+
+        // Step 4: Run the chosen process
+        if (chosen_proc != 0) {
+            chosen_proc->state = RUNNING;
+            c->proc = chosen_proc;
+
+            // Increment the ticks count for the chosen process
+            chosen_proc->ticks++;  // Add this line to track how many times the process runs
+
+            // Context switch to chosen process
+            swtch(&c->context, &chosen_proc->context);
+
+            // Process finished running
+            c->proc = 0;
+            release(&chosen_proc->lock);
+        }
     }
-    if(found == 0) {
-      // nothing to run; stop running on this core until an interrupt.
-      intr_on();
-      asm volatile("wfi");
-    }
-  }
 }
+
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores

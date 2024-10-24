@@ -21,4 +21,7 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_getfilenum 22  // new function call number 
+#define SYS_settickets 23
+#define SYS_getpinfo 24
+
 
