@@ -5,9 +5,7 @@ Below are the results from running homework.c and pinfo.c
 
 xv6 kernel is booting
 
-hart 1 starting
-hart 2 starting
-init: starting sh
+
 $ homework 300 &
 $ starting main
 initialized
